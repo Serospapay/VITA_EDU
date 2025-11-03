@@ -1,6 +1,9 @@
 # Root Dockerfile for Railway - builds from backend directory
 FROM node:18-alpine AS base
 
+# Install OpenSSL for Prisma
+RUN apk add --no-cache openssl1.1-compat libc6-compat
+
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app
@@ -9,8 +12,9 @@ WORKDIR /app
 COPY backend/package*.json ./
 COPY backend/prisma ./prisma/
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (as root, then fix permissions)
+RUN npm ci && \
+    chmod -R 755 /app/node_modules
 
 # Development stage
 FROM base AS development
@@ -36,8 +40,10 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY backend/ ./
 
-RUN npx prisma generate
-RUN npm run build
+# Generate Prisma and build (as root)
+RUN npx prisma generate && \
+    npm run build && \
+    chmod -R 755 /app/node_modules/@prisma
 
 # Production stage
 FROM base AS production
@@ -45,15 +51,19 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy necessary files
-COPY backend/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
+# Create non-root user BEFORE copying files
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 expressjs
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 expressjs
+# Copy necessary files
+COPY --chown=expressjs:nodejs backend/package*.json ./
+COPY --chown=expressjs:nodejs --from=builder /app/node_modules ./node_modules
+COPY --chown=expressjs:nodejs --from=builder /app/dist ./dist
+COPY --chown=expressjs:nodejs --from=builder /app/prisma ./prisma
+
+# Fix permissions for Prisma
+RUN chmod -R 755 /app/node_modules/@prisma 2>/dev/null || true
+
 USER expressjs
 
 EXPOSE 5000
