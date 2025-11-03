@@ -1,6 +1,5 @@
 # Nixpacks configuration for Railway
-[phases.setup]
-nixPkgs = ["nodejs-18_x", "npm-9_x"]
+# Railway will auto-detect Node.js, but we specify build commands
 
 [phases.install]
 cmds = [
