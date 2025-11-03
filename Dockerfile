@@ -51,8 +51,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ ./
 
 # Generate Prisma and build (as root)
-# Generate Prisma client (skip validation to avoid connection attempt)
+# Set SKIP_ENV_VALIDATION to prevent connection attempts during generate
 # DATABASE_URL is inherited from base stage but won't be used for connection
+ENV SKIP_ENV_VALIDATION=1
 RUN npx prisma generate --schema=./prisma/schema.prisma && \
     npm run build && \
     chmod -R 755 /app/node_modules/@prisma
