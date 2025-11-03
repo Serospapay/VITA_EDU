@@ -4,6 +4,9 @@ FROM node:18-alpine AS base
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl openssl-dev libc6-compat
 
+# Set dummy DATABASE_URL globally for all stages (Prisma requires it during validation)
+ENV DATABASE_URL="postgresql://user:password@localhost:5432/db?schema=public"
+
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app
@@ -12,10 +15,8 @@ WORKDIR /app
 COPY backend/package*.json ./
 COPY backend/prisma ./prisma/
 
-# Set dummy DATABASE_URL for npm install (Prisma needs it during postinstall)
-ENV DATABASE_URL="postgresql://user:password@localhost:5432/db?schema=public"
-
 # Install dependencies (as root, then fix permissions)
+# DATABASE_URL is inherited from base stage
 RUN npm ci && \
     chmod -R 755 /app/node_modules
 
@@ -28,6 +29,7 @@ RUN npm ci
 
 COPY backend/ ./
 
+# DATABASE_URL is inherited from base stage
 RUN npx prisma generate
 
 EXPOSE 5000
@@ -44,8 +46,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ ./
 
 # Generate Prisma and build (as root)
-# Use dummy DATABASE_URL for build - will be replaced at runtime
-ENV DATABASE_URL="postgresql://user:password@localhost:5432/db?schema=public"
+# DATABASE_URL is inherited from base stage
 RUN npx prisma generate && \
     npm run build && \
     chmod -R 755 /app/node_modules/@prisma
