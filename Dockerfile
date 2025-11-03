@@ -36,8 +36,10 @@ RUN npm ci --ignore-scripts
 COPY backend/ ./
 
 # Generate Prisma client without connecting to database
+# First format schema to validate it, then generate client without connection
 # DATABASE_URL is inherited from base stage but won't be used for connection
-RUN npx prisma generate --schema=./prisma/schema.prisma --generator client
+RUN npx prisma format --schema=./prisma/schema.prisma && \
+    PRISMA_GENERATE_DATAPROXY=false npx prisma generate --schema=./prisma/schema.prisma
 
 EXPOSE 5000
 
@@ -53,9 +55,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ ./
 
 # Generate Prisma and build (as root)
-# Use prisma generate with --skip-generate to avoid validation
+# First format schema to validate it, then generate client without connection
 # DATABASE_URL is inherited from base stage but won't be used for connection
-RUN npx prisma generate --schema=./prisma/schema.prisma --generator client && \
+RUN npx prisma format --schema=./prisma/schema.prisma && \
+    PRISMA_GENERATE_DATAPROXY=false npx prisma generate --schema=./prisma/schema.prisma && \
     npm run build && \
     chmod -R 755 /app/node_modules/@prisma
 
