@@ -35,11 +35,8 @@ RUN npm ci --ignore-scripts
 
 COPY backend/ ./
 
-# Generate Prisma client without connecting to database
-# First format schema to validate it, then generate client without connection
-# DATABASE_URL is inherited from base stage but won't be used for connection
-RUN npx prisma format --schema=./prisma/schema.prisma && \
-    PRISMA_GENERATE_DATAPROXY=false npx prisma generate --schema=./prisma/schema.prisma
+# Skip Prisma generate in development stage - will be done at runtime
+# This avoids connection attempts during build
 
 EXPOSE 5000
 
@@ -54,13 +51,10 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY backend/ ./
 
-# Generate Prisma and build (as root)
-# First format schema to validate it, then generate client without connection
-# DATABASE_URL is inherited from base stage but won't be used for connection
-RUN npx prisma format --schema=./prisma/schema.prisma && \
-    PRISMA_GENERATE_DATAPROXY=false npx prisma generate --schema=./prisma/schema.prisma && \
-    npm run build && \
-    chmod -R 755 /app/node_modules/@prisma
+# Build TypeScript code (skip Prisma generate - will be done at runtime)
+# Prisma generate will happen at container startup with real DATABASE_URL
+RUN npm run build && \
+    chmod -R 755 /app/node_modules
 
 # Production stage
 FROM base AS production
@@ -85,6 +79,7 @@ USER expressjs
 
 EXPOSE 5000
 
-# Run migrations and start server
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+# Generate Prisma client, run migrations and start server
+# At runtime, DATABASE_URL from Railway Variables will be available
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && npm start"]
 
