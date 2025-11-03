@@ -12,6 +12,9 @@ WORKDIR /app
 COPY backend/package*.json ./
 COPY backend/prisma ./prisma/
 
+# Set dummy DATABASE_URL for npm install (Prisma needs it during postinstall)
+ENV DATABASE_URL="postgresql://user:password@localhost:5432/db?schema=public"
+
 # Install dependencies (as root, then fix permissions)
 RUN npm ci && \
     chmod -R 755 /app/node_modules
@@ -41,6 +44,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ ./
 
 # Generate Prisma and build (as root)
+# Use dummy DATABASE_URL for build - will be replaced at runtime
+ENV DATABASE_URL="postgresql://user:password@localhost:5432/db?schema=public"
 RUN npx prisma generate && \
     npm run build && \
     chmod -R 755 /app/node_modules/@prisma
