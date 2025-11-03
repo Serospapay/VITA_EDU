@@ -58,7 +58,8 @@ USER expressjs
 
 EXPOSE 5000
 
-CMD ["npm", "start"]
+# Run migrations and start server
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
 
 
 
