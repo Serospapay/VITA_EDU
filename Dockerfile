@@ -18,8 +18,9 @@ COPY backend/package*.json ./
 COPY backend/prisma ./prisma/
 
 # Install dependencies (as root, then fix permissions)
+# Skip scripts to avoid Prisma postinstall trying to connect to DB
 # DATABASE_URL is inherited from base stage
-RUN npm ci && \
+RUN npm ci --ignore-scripts && \
     chmod -R 755 /app/node_modules
 
 # Development stage
@@ -27,11 +28,12 @@ FROM base AS development
 WORKDIR /app
 
 COPY backend/package*.json ./
-RUN npm ci
+# Skip scripts during npm install
+RUN npm ci --ignore-scripts
 
 COPY backend/ ./
 
-# Generate Prisma client (skip validation)
+# Generate Prisma client without connecting to database
 # DATABASE_URL is inherited from base stage but won't be used for connection
 RUN npx prisma generate --schema=./prisma/schema.prisma
 
