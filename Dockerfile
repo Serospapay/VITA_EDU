@@ -32,8 +32,9 @@ RUN npm ci --ignore-scripts
 
 COPY backend/ ./
 
-# Skip Prisma generate in development stage - will be done at runtime
-# This avoids connection attempts during build
+# Generate Prisma client (needed for TypeScript compilation)
+# prisma generate does NOT connect to database
+RUN npx prisma generate --schema=./prisma/schema.prisma
 
 EXPOSE 5000
 
@@ -48,9 +49,11 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY backend/ ./
 
-# Build TypeScript code (skip Prisma generate - will be done at runtime)
-# Prisma generate will happen at container startup with real DATABASE_URL
-RUN npm run build && \
+# Generate Prisma client and build TypeScript code
+# prisma generate does NOT connect to database - it only generates client from schema
+# We still need it during build for TypeScript compilation
+RUN npx prisma generate --schema=./prisma/schema.prisma && \
+    npm run build && \
     chmod -R 755 /app/node_modules
 
 # Production stage
