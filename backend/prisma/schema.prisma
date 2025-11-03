@@ -1,0 +1,594 @@
+// Prisma Schema для LMS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== USERS & AUTHENTICATION =====
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  password          String
+  firstName         String
+  lastName          String
+  avatar            String?
+  role              Role       @default(STUDENT)
+  status            UserStatus @default(ACTIVE)
+  bio               String?
+  phone             String?
+  dateOfBirth       DateTime?
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  emailVerified     Boolean    @default(false)
+  emailVerifyToken  String?
+  requestedCourseId String? // Course user wants to enroll in (pending admin approval)
+  lastLoginAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  // Relations
+  enrollments      Enrollment[]
+  teachingCourses  Course[]       @relation("TeacherCourses")
+  submissions      Submission[]
+  grades           Grade[]
+  quizAttempts     QuizAttempt[]
+  sentMessages     Message[]      @relation("SentMessages")
+  receivedMessages Message[]      @relation("ReceivedMessages")
+  notifications    Notification[]
+  attendance       Attendance[]
+  announcements    Announcement[]
+  comments         Comment[]
+  uploadedFiles    File[]
+
+  @@map("users")
+}
+
+// ===== COURSES =====
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model Course {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  description String
+  shortDesc   String?
+  thumbnail   String?
+  status      CourseStatus @default(DRAFT)
+  level       CourseLevel  @default(BEGINNER)
+  duration    Int? // в годинах
+  price       Float?       @default(0)
+  maxStudents Int?
+  startDate   DateTime?
+  endDate     DateTime?
+  teacherId   String
+  categoryId  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  teacher       User           @relation("TeacherCourses", fields: [teacherId], references: [id], onDelete: Cascade)
+  category      Category?      @relation(fields: [categoryId], references: [id])
+  enrollments   Enrollment[]
+  lessons       Lesson[]
+  assignments   Assignment[]
+  quizzes       Quiz[]
+  announcements Announcement[]
+  files         File[]
+  messages      Message[]       @relation("CourseMessages")
+
+  @@index([teacherId])
+  @@index([categoryId])
+  @@index([slug])
+  @@map("courses")
+}
+
+// ===== CATEGORIES =====
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  color       String?
+  parentId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  courses  Course[]
+
+  @@map("categories")
+}
+
+// ===== ENROLLMENTS =====
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+  SUSPENDED
+}
+
+model Enrollment {
+  id          String           @id @default(cuid())
+  userId      String
+  courseId    String
+  status      EnrollmentStatus @default(ACTIVE)
+  progress    Float            @default(0) // 0-100%
+  completedAt DateTime?
+  enrolledAt  DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+// ===== LESSONS =====
+
+enum LessonType {
+  VIDEO
+  TEXT
+  PDF
+  PRESENTATION
+  LINK
+}
+
+model Lesson {
+  id          String     @id @default(cuid())
+  title       String
+  slug        String
+  content     String?    @db.Text // HTML або markdown (великі тексти)
+  type        LessonType @default(TEXT)
+  videoUrl    String?
+  duration    Int? // в хвилинах
+  order       Int        @default(0)
+  isPublished Boolean    @default(false)
+  isFree      Boolean    @default(false)
+  scheduledAt DateTime? // дата/час проведення уроку
+  courseId    String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  course   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  files    File[]
+  comments Comment[]
+
+  @@unique([courseId, slug])
+  @@index([courseId])
+  @@map("lessons")
+}
+
+// ===== ASSIGNMENTS =====
+
+enum AssignmentType {
+  TEST // Тест з автоматичною перевіркою
+  PRACTICAL // Практичне завдання (код, файли)
+  PROJECT // Великий проект
+  QUIZ // Швидке опитування
+}
+
+model Assignment {
+  id                 String         @id @default(cuid())
+  title              String
+  description        String         @db.Text
+  type               AssignmentType @default(PRACTICAL)
+  maxScore           Float          @default(100)
+  passingScore       Float?
+  dueDate            DateTime?
+  allowLateSubmit    Boolean        @default(false)
+  timeLimit          Int? // Ліміт часу для тестів (в хвилинах)
+  maxAttempts        Int? // Максимальна кількість спроб для тестів
+  autoGrade          Boolean        @default(false) // Автоматичне оцінювання (для тестів)
+  shuffleQuestions   Boolean        @default(false) // Перемішувати питання
+  showCorrectAnswers Boolean        @default(true) // Показувати правильні відповіді після здачі
+  criteria           String?        @db.Text // Критерії оцінювання (JSON)
+  instructions       String?        @db.Text // Інструкції для виконання
+  courseId           String
+  lessonId           String? // Прив'язка до уроку (опціонально)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  // Relations
+  course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+  questions   AssignmentQuestion[] // Питання для тестів
+
+  @@index([courseId])
+  @@index([lessonId])
+  @@map("assignments")
+}
+
+// ===== ASSIGNMENT QUESTIONS (для тестів) =====
+
+enum QuestionType {
+  SINGLE_CHOICE // Одна правильна відповідь
+  MULTIPLE_CHOICE // Кілька правильних відповідей
+  TRUE_FALSE // Правда/Неправда
+  SHORT_ANSWER // Коротка текстова відповідь
+  LONG_ANSWER // Розгорнута відповідь
+}
+
+model AssignmentQuestion {
+  id           String       @id @default(cuid())
+  text         String       @db.Text
+  type         QuestionType @default(SINGLE_CHOICE)
+  points       Float        @default(1)
+  order        Int          @default(0)
+  explanation  String?      @db.Text // Пояснення правильної відповіді
+  assignmentId String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  assignment Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  options    AssignmentQuestionOption[]
+  answers    SubmissionAnswer[]
+
+  @@index([assignmentId])
+  @@map("assignment_questions")
+}
+
+model AssignmentQuestionOption {
+  id         String   @id @default(cuid())
+  text       String   @db.Text
+  isCorrect  Boolean  @default(false)
+  order      Int      @default(0)
+  questionId String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  question AssignmentQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("assignment_question_options")
+}
+
+// ===== SUBMISSION ANSWERS (відповіді на питання тестів) =====
+
+model SubmissionAnswer {
+  id              String   @id @default(cuid())
+  submissionId    String
+  questionId      String
+  selectedOptions String[] // IDs вибраних опцій
+  textAnswer      String?  @db.Text // Для текстових відповідей
+  isCorrect       Boolean  @default(false)
+  points          Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  // Relations
+  submission Submission         @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   AssignmentQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([questionId])
+  @@map("submission_answers")
+}
+
+// ===== SUBMISSIONS =====
+
+enum SubmissionStatus {
+  PENDING
+  SUBMITTED
+  GRADED
+  RETURNED
+}
+
+model Submission {
+  id            String           @id @default(cuid())
+  content       String?          @db.Text // Текстова відповідь або опис
+  fileUrl       String? // URL завантаженого файлу (deprecated)
+  files         String[] // Масив URL-ів файлів (JSON array)
+  githubUrl     String? // URL GitHub репозиторію
+  assignmentId  String
+  userId        String
+  status        SubmissionStatus @default(PENDING)
+  score         Float? // Фактична оцінка
+  maxScore      Float? // Максимальна оцінка (для історії)
+  feedback      String?          @db.Text
+  attemptNumber Int              @default(1) // Номер спроби (для тестів)
+  timeSpent     Int? // Час виконання в секундах
+  startedAt     DateTime? // Коли почав виконувати (для тестів з лімітом часу)
+  submittedAt   DateTime?
+  gradedAt      DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  assignment Assignment         @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grade      Grade?
+  answers    SubmissionAnswer[] // Відповіді на питання тесту
+
+  @@index([assignmentId])
+  @@index([userId])
+  @@map("submissions")
+}
+
+// ===== GRADES =====
+
+model Grade {
+  id           String   @id @default(cuid())
+  score        Float
+  maxScore     Float    @default(100)
+  feedback     String?
+  submissionId String   @unique
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("grades")
+}
+
+// ===== QUIZZES =====
+
+model Quiz {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  timeLimit    Int? // в хвилинах
+  passingScore Float    @default(60)
+  maxAttempts  Int?
+  courseId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  course    Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@index([courseId])
+  @@map("quizzes")
+}
+
+model Question {
+  id        String       @id @default(cuid())
+  text      String
+  type      QuestionType @default(SINGLE_CHOICE)
+  points    Float        @default(1)
+  order     Int          @default(0)
+  quizId    String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // Relations
+  quiz    Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options QuestionOption[]
+  answers Answer[]
+
+  @@index([quizId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  text       String
+  isCorrect  Boolean  @default(false)
+  order      Int      @default(0)
+  questionId String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  quizId      String
+  userId      String
+  score       Float?
+  maxScore    Float?
+  isPassed    Boolean   @default(false)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([quizId])
+  @@index([userId])
+  @@map("quiz_attempts")
+}
+
+model Answer {
+  id              String   @id @default(cuid())
+  attemptId       String
+  questionId      String
+  selectedOptions String[] // IDs опцій
+  textAnswer      String?
+  isCorrect       Boolean  @default(false)
+  points          Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  // Relations
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("answers")
+}
+
+// ===== ATTENDANCE =====
+
+model Attendance {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @default(now())
+  status    String // present, absent, late, excused
+  notes     String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@map("attendance")
+}
+
+// ===== MESSAGES & CHAT =====
+
+model Message {
+  id         String   @id @default(cuid())
+  content    String   @db.Text
+  senderId   String
+  receiverId String?
+  courseId   String? // Для курс-чатів: null = приватне повідомлення, заповнено = курс-чат
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  // Relations
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User?  @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  course   Course? @relation("CourseMessages", fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([courseId])
+  @@map("messages")
+}
+
+// ===== NOTIFICATIONS =====
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+  userId    String
+  link      String?
+  createdAt DateTime         @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+// ===== ANNOUNCEMENTS =====
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  courseId  String?
+  authorId  String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([authorId])
+  @@map("announcements")
+}
+
+// ===== COMMENTS =====
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  lessonId  String?
+  userId    String
+  parentId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  lesson  Lesson?   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([lessonId])
+  @@index([userId])
+  @@map("comments")
+}
+
+// ===== FILES =====
+
+model File {
+  id           String   @id @default(cuid())
+  name         String
+  originalName String
+  mimeType     String
+  size         Int
+  url          String
+  courseId     String?
+  lessonId     String?
+  uploaderId   String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  course   Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson   Lesson? @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([lessonId])
+  @@index([uploaderId])
+  @@map("files")
+}

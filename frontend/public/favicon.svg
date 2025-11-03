@@ -1,0 +1,24 @@
+<svg width="64" height="64" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="vGradient" x1="8" y1="16" x2="32" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="50%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="sharpGradient" x1="32" y1="20" x2="44" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EC4899"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Large letter V -->
+  <path d="M8 20L20 36L32 20" stroke="url(#vGradient)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  
+  <!-- Sharp symbol # -->
+  <line x1="32" y1="22" x2="42" y2="22" stroke="url(#sharpGradient)" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="32" y1="28" x2="42" y2="28" stroke="url(#sharpGradient)" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="34" y1="20" x2="34" y2="32" stroke="url(#sharpGradient)" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="40" y1="20" x2="40" y2="32" stroke="url(#sharpGradient)" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
+
+
