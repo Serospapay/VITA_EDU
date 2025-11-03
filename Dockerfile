@@ -5,9 +5,11 @@ FROM node:18-alpine AS base
 RUN apk add --no-cache openssl openssl-dev libc6-compat
 
 # Set dummy DATABASE_URL globally for all stages (Prisma requires it during validation)
+# Use a non-existent host to prevent actual connection attempts
 # This is only used for schema validation, not actual connection
-ENV DATABASE_URL="postgresql://user:password@localhost:5432/db?schema=public"
+ENV DATABASE_URL="postgresql://user:password@127.0.0.1:9999/db?schema=public&connect_timeout=1"
 ENV PRISMA_SKIP_POSTINSTALL_GENERATE="true"
+ENV PRISMA_GENERATE_SKIP_AUTOINSTALL="true"
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -34,10 +36,8 @@ RUN npm ci --ignore-scripts
 COPY backend/ ./
 
 # Generate Prisma client without connecting to database
-# Set SKIP_ENV_VALIDATION to prevent connection attempts during generate
 # DATABASE_URL is inherited from base stage but won't be used for connection
-ENV SKIP_ENV_VALIDATION=1
-RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN npx prisma generate --schema=./prisma/schema.prisma --generator client
 
 EXPOSE 5000
 
@@ -53,10 +53,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ ./
 
 # Generate Prisma and build (as root)
-# Set SKIP_ENV_VALIDATION to prevent connection attempts during generate
+# Use prisma generate with --skip-generate to avoid validation
 # DATABASE_URL is inherited from base stage but won't be used for connection
-ENV SKIP_ENV_VALIDATION=1
-RUN npx prisma generate --schema=./prisma/schema.prisma && \
+RUN npx prisma generate --schema=./prisma/schema.prisma --generator client && \
     npm run build && \
     chmod -R 755 /app/node_modules/@prisma
 
