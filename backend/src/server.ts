@@ -16,8 +16,7 @@ import { connectRedis } from './config/redis';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { initializeSocket } from './socket';
 
-const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || '0.0.0.0';
+const PORT = Number(process.env.PORT) || 5000;
 
 // Global error handlers - MUST be set before anything else
 process.on('uncaughtException', (error: Error) => {
@@ -31,7 +30,7 @@ process.on('uncaughtException', (error: Error) => {
   }, 1000);
 });
 
-process.on('unhandledRejection', (reason: unknown, promise: Promise<any>) => {
+process.on('unhandledRejection', (reason: unknown) => {
   logger.error('💥 UNHANDLED REJECTION! Server will restart...', {
     reason: reason instanceof Error ? reason.message : String(reason),
     stack: reason instanceof Error ? reason.stack : undefined,
@@ -67,12 +66,13 @@ async function startServer() {
     initializeSocket(httpServer);
     logger.info('✅ WebSocket server initialized');
 
-    // Start server
+    // Start server - listen on all interfaces (0.0.0.0) to allow network access
+    const HOST = process.env.HOST || '0.0.0.0';
     const server = httpServer.listen(PORT, HOST, () => {
       logger.info(`🚀 Server running on http://${HOST}:${PORT}`);
-      logger.info(`🌐 Network access: http://${HOST}:${PORT} or http://localhost:${PORT}`);
       logger.info(`📚 Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`📖 API Docs: http://${HOST}:${PORT}/api-docs`);
+      logger.info(`🌐 Accessible from network at http://<your-ip>:${PORT}`);
     });
 
     // Graceful shutdown
@@ -120,6 +120,9 @@ async function startServer() {
 }
 
 startServer();
+
+
+
 
 
 

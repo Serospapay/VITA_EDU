@@ -483,7 +483,7 @@ model Message {
   id         String   @id @default(cuid())
   content    String   @db.Text
   senderId   String
-  receiverId String?
+  receiverId String?  // Nullable for course messages
   courseId   String? // Для курс-чатів: null = приватне повідомлення, заповнено = курс-чат
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
@@ -592,3 +592,4 @@ model File {
   @@index([uploaderId])
   @@map("files")
 }
+

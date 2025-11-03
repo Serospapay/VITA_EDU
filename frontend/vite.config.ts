@@ -19,8 +19,8 @@ export default defineConfig({
     },
   },
   server: {
+    host: '0.0.0.0', // Listen on all interfaces for network access
     port: 3000,
-    host: true, // Allow access from network
     proxy: {
       '/api': {
         target: 'http://localhost:5000',
@@ -29,6 +29,8 @@ export default defineConfig({
     },
   },
 });
+
+
 
 
 

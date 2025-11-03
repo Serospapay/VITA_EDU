@@ -18,6 +18,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Log request in dev mode
+    if (import.meta.env.DEV) {
+      console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+    }
     return config;
   },
   (error) => {
@@ -29,6 +33,16 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Log errors in dev mode
+    if (import.meta.env.DEV) {
+      console.error('❌ API Error:', {
+        url: error.config?.url,
+        status: error.response?.status,
+        message: error.message,
+        baseURL: error.config?.baseURL,
+      });
+    }
+
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -57,6 +71,7 @@ api.interceptors.response.use(
 );
 
 export default api;
+
 
 
 

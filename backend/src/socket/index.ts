@@ -16,22 +16,29 @@ export const initializeSocket = (httpServer: HTTPServer) => {
         // Allow requests with no origin
         if (!origin) return callback(null, true);
         
-        // Allow localhost and local network IPs
-        const allowedOrigins = [
-          'http://localhost:3000',
-          'http://127.0.0.1:3000',
-          process.env.CORS_ORIGIN,
-          process.env.FRONTEND_URL,
-        ].filter(Boolean);
-        
-        // Check if origin matches local network pattern
-        const isLocalNetwork = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
-        
-        if (allowedOrigins.includes(origin) || isLocalNetwork) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
+        // Allow localhost
+        if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+          return callback(null, true);
         }
+        
+        // Allow local network IPs
+        const localNetworkPattern = /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/;
+        if (localNetworkPattern.test(origin)) {
+          return callback(null, true);
+        }
+        
+        // Allow public IPs on specific ports (3000 for frontend, 5000 for API docs)
+        const publicIPPattern = /^http:\/\/(\d{1,3}\.){3}\d{1,3}:(3000|5000)$/;
+        if (publicIPPattern.test(origin)) {
+          return callback(null, true);
+        }
+        
+        // Allow configured origin
+        if (origin === process.env.CORS_ORIGIN || origin === process.env.FRONTEND_URL) {
+          return callback(null, true);
+        }
+        
+        callback(new Error('Not allowed by CORS'));
       },
       credentials: true,
     },
@@ -227,6 +234,7 @@ export const initializeSocket = (httpServer: HTTPServer) => {
 };
 
 export default initializeSocket;
+
 
 
 

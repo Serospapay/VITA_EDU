@@ -69,29 +69,37 @@ const swaggerDocs = swaggerJsDoc(swaggerOptions);
 // Security
 app.use(helmet());
 
-// CORS - Support for local network access
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
+// CORS - Allow requests from localhost, local network, and public IPs
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, postman)
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
       
-      // Allow localhost and local network IPs
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        ...(corsOrigin ? [corsOrigin] : []),
-      ];
-      
-      // Check if origin matches localhost pattern or local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-      const isLocalNetwork = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
-      
-      if (allowedOrigins.includes(origin) || isLocalNetwork) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
+      // Allow localhost
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, true);
       }
+      
+      // Allow local network IPs (192.168.x.x, 10.x.x.x, 172.x.x.x)
+      const localNetworkPattern = /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/;
+      if (localNetworkPattern.test(origin)) {
+        return callback(null, true);
+      }
+      
+      // Allow public IPs on specific ports (3000 for frontend, 5000 for API docs)
+      // This allows access from any public IP:port combination
+      const publicIPPattern = /^http:\/\/(\d{1,3}\.){3}\d{1,3}:(3000|5000)$/;
+      if (publicIPPattern.test(origin)) {
+        return callback(null, true);
+      }
+      
+      // Allow configured CORS origin
+      if (origin === process.env.CORS_ORIGIN) {
+        return callback(null, true);
+      }
+      
+      callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
   })
@@ -173,6 +181,8 @@ app.use(notFound);
 app.use(errorHandler);
 
 export default app;
+
+
 
 
 

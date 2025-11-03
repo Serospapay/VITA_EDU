@@ -41,6 +41,7 @@ const HomePage = () => {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       // Fetch published courses to get stats
       const [coursesRes] = await Promise.all([
         api.get('/courses?status=PUBLISHED&limit=100'),
@@ -488,3 +489,4 @@ const HomePage = () => {
 };
 
 export default HomePage;
+

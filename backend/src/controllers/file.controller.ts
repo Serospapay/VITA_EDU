@@ -93,7 +93,9 @@ export const deleteFile = async (
     }
 
     // Delete file from filesystem
-    const filePath = path.join(__dirname, '../../uploads', file.name);
+    // Parse the URL to get the actual file path
+    const urlPath = file.url.replace('/uploads/', '');
+    const filePath = path.join(__dirname, '../../uploads', urlPath);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
@@ -157,6 +159,8 @@ export const getFilesByCourse = async (
     next(error);
   }
 };
+
+
 
 
 

@@ -46,9 +46,18 @@ echo Frontend: http://localhost:3000
 echo Backend:  http://localhost:5000
 echo.
 if not "%IP%"=="" (
-    echo Network: http://%IP%:3000
+    echo.
+    echo ========================================
+    echo   Network Access Enabled!
+    echo ========================================
+    echo.
+    echo Frontend (Network): http://%IP%:3000
+    echo Backend (Network):  http://%IP%:5000
+    echo API Docs:           http://%IP%:5000/api-docs
+    echo.
+    echo Other devices can access through these URLs
+    echo.
 )
-echo.
 echo Press any key to stop all services...
 pause >nul
 
@@ -58,6 +67,7 @@ taskkill /F /FI "WINDOWTITLE eq VITA-Edu Frontend" >nul 2>&1
 echo.
 echo All services stopped.
 timeout /t 2 >nul
+
 
 
 

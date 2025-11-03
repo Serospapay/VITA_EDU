@@ -17,13 +17,13 @@ CREATE TYPE "EnrollmentStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'DROPPED', 'SUSPE
 CREATE TYPE "LessonType" AS ENUM ('VIDEO', 'TEXT', 'PDF', 'PRESENTATION', 'LINK');
 
 -- CreateEnum
-CREATE TYPE "AssignmentType" AS ENUM ('ESSAY', 'CODE', 'FILE_UPLOAD', 'QUIZ');
+CREATE TYPE "AssignmentType" AS ENUM ('TEST', 'PRACTICAL', 'PROJECT', 'QUIZ');
 
 -- CreateEnum
 CREATE TYPE "SubmissionStatus" AS ENUM ('PENDING', 'SUBMITTED', 'GRADED', 'RETURNED');
 
 -- CreateEnum
-CREATE TYPE "QuestionType" AS ENUM ('SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER');
+CREATE TYPE "QuestionType" AS ENUM ('SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER', 'LONG_ANSWER');
 
 -- CreateEnum
 CREATE TYPE "NotificationType" AS ENUM ('INFO', 'SUCCESS', 'WARNING', 'ERROR');
@@ -128,12 +128,20 @@ CREATE TABLE "assignments" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "type" "AssignmentType" NOT NULL DEFAULT 'FILE_UPLOAD',
+    "type" "AssignmentType" NOT NULL DEFAULT 'PRACTICAL',
     "maxScore" DOUBLE PRECISION NOT NULL DEFAULT 100,
     "passingScore" DOUBLE PRECISION,
     "dueDate" TIMESTAMP(3),
     "allowLateSubmit" BOOLEAN NOT NULL DEFAULT false,
+    "timeLimit" INTEGER,
+    "maxAttempts" INTEGER,
+    "autoGrade" BOOLEAN NOT NULL DEFAULT false,
+    "shuffleQuestions" BOOLEAN NOT NULL DEFAULT false,
+    "showCorrectAnswers" BOOLEAN NOT NULL DEFAULT true,
+    "criteria" TEXT,
+    "instructions" TEXT,
     "courseId" TEXT NOT NULL,
+    "lessonId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -141,21 +149,68 @@ CREATE TABLE "assignments" (
 );
 
 -- CreateTable
+CREATE TABLE "assignment_questions" (
+    "id" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "type" "QuestionType" NOT NULL DEFAULT 'SINGLE_CHOICE',
+    "points" DOUBLE PRECISION NOT NULL DEFAULT 1,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "explanation" TEXT,
+    "assignmentId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "assignment_questions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "assignment_question_options" (
+    "id" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "isCorrect" BOOLEAN NOT NULL DEFAULT false,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "questionId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "assignment_question_options_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "submissions" (
     "id" TEXT NOT NULL,
     "content" TEXT,
     "fileUrl" TEXT,
+    "files" TEXT[],
+    "githubUrl" TEXT,
     "assignmentId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "status" "SubmissionStatus" NOT NULL DEFAULT 'PENDING',
     "score" DOUBLE PRECISION,
+    "maxScore" DOUBLE PRECISION,
     "feedback" TEXT,
+    "attemptNumber" INTEGER NOT NULL DEFAULT 1,
+    "timeSpent" INTEGER,
+    "startedAt" TIMESTAMP(3),
     "submittedAt" TIMESTAMP(3),
     "gradedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "submissions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "submission_answers" (
+    "id" TEXT NOT NULL,
+    "submissionId" TEXT NOT NULL,
+    "questionId" TEXT NOT NULL,
+    "selectedOptions" TEXT[],
+    "textAnswer" TEXT,
+    "isCorrect" BOOLEAN NOT NULL DEFAULT false,
+    "points" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "submission_answers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -259,7 +314,8 @@ CREATE TABLE "messages" (
     "id" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "senderId" TEXT NOT NULL,
-    "receiverId" TEXT NOT NULL,
+    "receiverId" TEXT,
+    "courseId" TEXT,
     "isRead" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -363,10 +419,25 @@ CREATE UNIQUE INDEX "lessons_courseId_slug_key" ON "lessons"("courseId", "slug")
 CREATE INDEX "assignments_courseId_idx" ON "assignments"("courseId");
 
 -- CreateIndex
+CREATE INDEX "assignments_lessonId_idx" ON "assignments"("lessonId");
+
+-- CreateIndex
+CREATE INDEX "assignment_questions_assignmentId_idx" ON "assignment_questions"("assignmentId");
+
+-- CreateIndex
+CREATE INDEX "assignment_question_options_questionId_idx" ON "assignment_question_options"("questionId");
+
+-- CreateIndex
 CREATE INDEX "submissions_assignmentId_idx" ON "submissions"("assignmentId");
 
 -- CreateIndex
 CREATE INDEX "submissions_userId_idx" ON "submissions"("userId");
+
+-- CreateIndex
+CREATE INDEX "submission_answers_submissionId_idx" ON "submission_answers"("submissionId");
+
+-- CreateIndex
+CREATE INDEX "submission_answers_questionId_idx" ON "submission_answers"("questionId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "grades_submissionId_key" ON "grades"("submissionId");
@@ -406,6 +477,9 @@ CREATE INDEX "messages_senderId_idx" ON "messages"("senderId");
 
 -- CreateIndex
 CREATE INDEX "messages_receiverId_idx" ON "messages"("receiverId");
+
+-- CreateIndex
+CREATE INDEX "messages_courseId_idx" ON "messages"("courseId");
 
 -- CreateIndex
 CREATE INDEX "notifications_userId_idx" ON "notifications"("userId");
@@ -453,6 +527,15 @@ ALTER TABLE "lessons" ADD CONSTRAINT "lessons_courseId_fkey" FOREIGN KEY ("cours
 ALTER TABLE "assignments" ADD CONSTRAINT "assignments_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "assignments" ADD CONSTRAINT "assignments_lessonId_fkey" FOREIGN KEY ("lessonId") REFERENCES "lessons"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "assignment_questions" ADD CONSTRAINT "assignment_questions_assignmentId_fkey" FOREIGN KEY ("assignmentId") REFERENCES "assignments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "assignment_question_options" ADD CONSTRAINT "assignment_question_options_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "assignment_questions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "submissions" ADD CONSTRAINT "submissions_assignmentId_fkey" FOREIGN KEY ("assignmentId") REFERENCES "assignments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -463,6 +546,12 @@ ALTER TABLE "grades" ADD CONSTRAINT "grades_submissionId_fkey" FOREIGN KEY ("sub
 
 -- AddForeignKey
 ALTER TABLE "grades" ADD CONSTRAINT "grades_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "submission_answers" ADD CONSTRAINT "submission_answers_submissionId_fkey" FOREIGN KEY ("submissionId") REFERENCES "submissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "submission_answers" ADD CONSTRAINT "submission_answers_questionId_fkey" FOREIGN KEY ("questionId") REFERENCES "assignment_questions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "quizzes" ADD CONSTRAINT "quizzes_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -493,6 +582,9 @@ ALTER TABLE "messages" ADD CONSTRAINT "messages_senderId_fkey" FOREIGN KEY ("sen
 
 -- AddForeignKey
 ALTER TABLE "messages" ADD CONSTRAINT "messages_receiverId_fkey" FOREIGN KEY ("receiverId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "messages" ADD CONSTRAINT "messages_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "courses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
