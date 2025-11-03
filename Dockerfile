@@ -34,7 +34,9 @@ RUN npm ci --ignore-scripts
 COPY backend/ ./
 
 # Generate Prisma client without connecting to database
+# Set SKIP_ENV_VALIDATION to prevent connection attempts during generate
 # DATABASE_URL is inherited from base stage but won't be used for connection
+ENV SKIP_ENV_VALIDATION=1
 RUN npx prisma generate --schema=./prisma/schema.prisma
 
 EXPOSE 5000
