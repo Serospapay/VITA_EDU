@@ -4,12 +4,9 @@ FROM node:18-alpine AS base
 # Install OpenSSL for Prisma
 RUN apk add --no-cache openssl openssl-dev libc6-compat
 
-# Set dummy DATABASE_URL globally for all stages (Prisma requires it during validation)
-# Use a non-existent host to prevent actual connection attempts
-# This is only used for schema validation, not actual connection
-ENV DATABASE_URL="postgresql://user:password@127.0.0.1:9999/db?schema=public&connect_timeout=1"
+# Prisma generate will be done at runtime, so no DATABASE_URL needed during build
+# DATABASE_URL will be provided by Railway Variables at container startup
 ENV PRISMA_SKIP_POSTINSTALL_GENERATE="true"
-ENV PRISMA_GENERATE_SKIP_AUTOINSTALL="true"
 
 # Install dependencies only when needed
 FROM base AS deps
