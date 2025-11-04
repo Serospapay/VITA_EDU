@@ -1,4 +1,4 @@
-# PowerShell скрипт для встановлення Windows Service
+﻿# PowerShell скрипт для встановлення Windows Service
 # Запускає проект як Windows Service для автоматичного перезапуску
 
 Write-Host "========================================" -ForegroundColor Cyan
@@ -111,4 +111,3 @@ Write-Host "Сервіси автоматично запускатимуться
 Write-Host "і автоматично перезапускатимуться при падінні" -ForegroundColor Green
 Write-Host ""
 pause
-
