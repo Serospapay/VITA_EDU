@@ -32,46 +32,54 @@ Write-Host ""
 
 # Створення конфігурації PM2
 Write-Host "[2/4] Створення конфігурації PM2..." -ForegroundColor Yellow
-$pm2Config = @"
-{
-  "apps": [
-    {
-      "name": "vita-edu-backend",
-      "script": "npm",
-      "args": "run dev",
-      "cwd": "$PWD\backend",
-      "instances": 1,
-      "autorestart": true,
-      "watch": false,
-      "max_memory_restart": "1G",
-      "env": {
-        "NODE_ENV": "development"
-      },
-      "error_file": "$PWD\backend\logs\pm2-error.log",
-      "out_file": "$PWD\backend\logs\pm2-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z"
-    },
-    {
-      "name": "vita-edu-frontend",
-      "script": "npm",
-      "args": "run dev",
-      "cwd": "$PWD\frontend",
-      "instances": 1,
-      "autorestart": true,
-      "watch": false,
-      "max_memory_restart": "500M",
-      "env": {
-        "NODE_ENV": "development"
-      },
-      "error_file": "$PWD\frontend\logs\pm2-error.log",
-      "out_file": "$PWD\frontend\logs\pm2-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z"
-    }
-  ]
-}
-"@
 
-$pm2Config | Out-File -FilePath "ecosystem.config.json" -Encoding UTF8
+# Створюємо папки для логів
+$backendLogsPath = Join-Path $PWD "backend\logs"
+$frontendLogsPath = Join-Path $PWD "frontend\logs"
+New-Item -ItemType Directory -Force -Path $backendLogsPath | Out-Null
+New-Item -ItemType Directory -Force -Path $frontendLogsPath | Out-Null
+
+# Створюємо JSON конфігурацію через PowerShell об'єкт
+$pm2Config = @{
+    apps = @(
+        @{
+            name = "vita-edu-backend"
+            script = "npm"
+            args = "run dev"
+            cwd = Join-Path $PWD "backend"
+            instances = 1
+            autorestart = $true
+            watch = $false
+            max_memory_restart = "1G"
+            env = @{
+                NODE_ENV = "development"
+            }
+            error_file = Join-Path $PWD "backend\logs\pm2-error.log"
+            out_file = Join-Path $PWD "backend\logs\pm2-out.log"
+            log_date_format = "YYYY-MM-DD HH:mm:ss Z"
+        },
+        @{
+            name = "vita-edu-frontend"
+            script = "npm"
+            args = "run dev"
+            cwd = Join-Path $PWD "frontend"
+            instances = 1
+            autorestart = $true
+            watch = $false
+            max_memory_restart = "500M"
+            env = @{
+                NODE_ENV = "development"
+            }
+            error_file = Join-Path $PWD "frontend\logs\pm2-error.log"
+            out_file = Join-Path $PWD "frontend\logs\pm2-out.log"
+            log_date_format = "YYYY-MM-DD HH:mm:ss Z"
+        }
+    )
+}
+
+# Конвертуємо в JSON і зберігаємо
+$pm2ConfigJson = $pm2Config | ConvertTo-Json -Depth 10
+$pm2ConfigJson | Out-File -FilePath "ecosystem.config.json" -Encoding UTF8
 Write-Host "OK Конфігурація створена" -ForegroundColor Green
 Write-Host ""
 
