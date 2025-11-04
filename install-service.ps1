@@ -1,6 +1,10 @@
 ﻿# PowerShell скрипт для встановлення Windows Service
 # Запускає проект як Windows Service для автоматичного перезапуску
 
+# Встановлюємо кодування UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  VITA-Edu Service Installer" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
