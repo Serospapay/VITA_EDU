@@ -45,7 +45,9 @@ dir
 psql --version
 ```
 
-### 2.2. Створіть базу даних:
+### 2.2. Варіант A: Створити нову базу даних (чистий старт)
+
+**Створіть базу даних:**
 ```powershell
 # Запустіть PostgreSQL
 psql -U postgres
@@ -60,6 +62,63 @@ CREATE DATABASE lms_db;
 cd backend
 node scripts/create-database.js
 ```
+
+### 2.2. Варіант B: Перенести базу даних зі старого ПК
+
+**На старому ПК (експорт):**
+
+1. **Експортуйте базу даних:**
+```powershell
+# Відкрийте PowerShell на старому ПК
+cd C:\Users\ВашеІм'я\Desktop\VITA_EDU
+
+# Створіть дамп бази даних
+pg_dump -U postgres -h localhost -d lms_db -F c -b -v -f "backup_lms_db.dump"
+
+# АБО якщо використовуєте пароль:
+$env:PGPASSWORD = "ваш_пароль"
+pg_dump -U postgres -h localhost -d lms_db -F c -b -v -f "backup_lms_db.dump"
+```
+
+2. **Альтернативний спосіб (SQL формат):**
+```powershell
+pg_dump -U postgres -h localhost -d lms_db -F p -f "backup_lms_db.sql"
+```
+
+3. **Скопіюйте файл на новий ПК:**
+   - Через USB/флешку
+   - Через мережу
+   - Через хмарне сховище (Google Drive, Dropbox тощо)
+
+**На новому ПК (імпорт):**
+
+1. **Створіть базу даних (порожню):**
+```powershell
+psql -U postgres
+CREATE DATABASE lms_db;
+\q
+```
+
+2. **Імпортуйте дамп (Custom формат):**
+```powershell
+cd C:\Users\ВашеІм'я\Desktop\VITA_EDU
+pg_restore -U postgres -h localhost -d lms_db -v "backup_lms_db.dump"
+```
+
+3. **АБО якщо SQL формат:**
+```powershell
+psql -U postgres -h localhost -d lms_db -f "backup_lms_db.sql"
+```
+
+4. **Перевірте імпорт:**
+```powershell
+psql -U postgres -h localhost -d lms_db -c "SELECT COUNT(*) FROM \"User\";"
+```
+
+**⚠️ Важливо:**
+- Переконайтеся що версії PostgreSQL на обох ПК сумісні (краще однакові)
+- Якщо використовували міграції Prisma, спочатку виконайте міграції, потім імпортуйте дані
+- Або експортуйте тільки дані (без схеми), а схему створіть через Prisma міграції
 
 ---
 
@@ -132,14 +191,31 @@ npx prisma generate
 ```
 
 ### 4.3. Виконайте міграції бази даних:
+
+**Якщо використовували Варіант A (нова база):**
 ```powershell
 npx prisma migrate deploy
 ```
 
-### 4.4. Заповніть базу тестовими даними (опціонально):
+**Якщо використовували Варіант B (перенесена база):**
+```powershell
+# Якщо схема вже існує в дампі, міграції можуть видати помилку
+# У такому випадку використайте:
+npx prisma migrate resolve --applied 20251029092810_init
+npx prisma migrate resolve --applied 20251030083324_add_requested_course_id
+npx prisma migrate resolve --applied 20251030085941_add_lesson_scheduled_at
+# (замініть на актуальні назви міграцій)
+```
+
+### 4.4. Заповніть базу тестовими даними:
+
+**Якщо використовували Варіант A (нова база):**
 ```powershell
 npx ts-node prisma/seed-full.ts
 ```
+
+**Якщо використовували Варіант B (перенесена база):**
+- Дані вже є в базі, seed не потрібен
 
 ### 4.5. Встановіть Frontend залежності:
 ```powershell
